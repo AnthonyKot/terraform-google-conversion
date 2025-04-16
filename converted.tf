@@ -21,6 +21,10 @@ resource "google_container_cluster" "cluster-zonal-1" {
     }
   }
 
+  datapath_provider         = "LEGACY_DATAPATH"
+  default_max_pods_per_node = 110
+  enable_shielded_nodes     = true
+
   ip_allocation_policy {
     cluster_ipv4_cidr_block      = "10.52.0.0/14"
     cluster_secondary_range_name = "gke-cluster-zonal-1-pods-de672f38"
@@ -28,8 +32,34 @@ resource "google_container_cluster" "cluster-zonal-1" {
     stack_type                   = "IPV4"
   }
 
-  name    = "cluster-zonal-1"
-  network = "default"
+  logging_service          = "logging.googleapis.com/kubernetes"
+  master_version           = "1.31.5-gke.1233001"
+  monitoring_service       = "monitoring.googleapis.com/kubernetes"
+  name                     = "cluster-zonal-1"
+  network                  = "default"
+  networking_mode          = "VPC_NATIVE"
+  node_locations           = ["us-central1-c"]
+  node_version             = "1.31.5-gke.1233001"
+  project                  = "cluster-converter-1"
+  remove_default_node_pool = true
+  subnetwork               = "default"
+}
+
+resource "google_container_node_pool" "pool-name" {
+  cluster = "cluster-zonal-1"
+
+  management {
+    auto_repair  = true
+    auto_upgrade = false
+  }
+
+  name = "pool-name"
+
+  network_config {
+    create_pod_range    = false
+    pod_ipv4_cidr_block = "10.52.0.0/14"
+    pod_range           = "gke-cluster-zonal-1-pods-de672f38"
+  }
 
   node_config {
     disk_size_gb   = 100
@@ -52,6 +82,14 @@ resource "google_container_cluster" "cluster-zonal-1" {
     }
   }
 
+  node_count = 1
   project    = "cluster-converter-1"
-  subnetwork = "default"
+
+  upgrade_settings {
+    max_surge       = 1
+    max_unavailable = 0
+    strategy        = "SURGE"
+  }
+
+  version = "1.31.5-gke.1233001"
 }

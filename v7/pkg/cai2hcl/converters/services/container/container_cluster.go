@@ -45,7 +45,6 @@ func NewContainerClusterConverter(provider *schema.Provider) models.Converter {
 		nps = nodePoolSchema.Schema
 	}
 
-
 	return &ContainerClusterConverter{
 		clusterName:    ContainerClusterSchemaName,
 		clusterSchema:  cs,
@@ -71,12 +70,9 @@ func (c *ContainerClusterConverter) Convert(asset *caiasset.Asset) ([]*models.Te
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cluster data: %w", err)
 	}
-    if clusterBlock == nil {
-         // Handle case where cluster conversion itself failed gracefully maybe?
-         // Or let the error path above handle it. If convertClusterData returns nil error AND nil block, that's an issue.
-         // For now, assume if err is nil, block is not nil.
+	if clusterBlock == nil && err == nil {
+         return nil, fmt.Errorf("cluster conversion returned nil block without error")
     }
-
 
 	blocks := []*models.TerraformResourceBlock{clusterBlock}
 
@@ -90,9 +86,9 @@ func (c *ContainerClusterConverter) Convert(asset *caiasset.Asset) ([]*models.Te
 				fmt.Printf("Warning: Failed to convert node pool %s: %v. Skipping.\n", nodePool.Name, err)
 				continue
 			}
-            if nodePoolBlock != nil {
-			    blocks = append(blocks, nodePoolBlock)
-            }
+			if nodePoolBlock != nil {
+				blocks = append(blocks, nodePoolBlock)
+			}
 		}
 	}
 
@@ -104,8 +100,8 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 		return nil, fmt.Errorf("cluster data is nil")
 	}
 	if c.clusterSchema == nil {
-        return nil, fmt.Errorf("cluster schema is nil in converter")
-    }
+		return nil, fmt.Errorf("cluster schema is nil in converter")
+	}
 
 	hclData := make(map[string]interface{})
 
@@ -115,10 +111,19 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 		hclData["project"] = project
 	}
 
+	if cluster.Description != "" {
+		hclData["description"] = cluster.Description
+	}
+
 	if len(cluster.NodePools) > 0 {
 		hclData["remove_default_node_pool"] = true
-	} else if cluster.NodeConfig != nil {
-		hclData["node_config"] = flattenNodeConfig(cluster.NodeConfig)
+	} else {
+		if cluster.InitialNodeCount > 0 {
+			hclData["initial_node_count"] = cluster.InitialNodeCount
+		}
+		if cluster.NodeConfig != nil {
+			hclData["node_config"] = flattenNodeConfig(cluster.NodeConfig)
+		}
 	}
 
 	if cluster.Network != "" {
@@ -129,19 +134,98 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 	}
 
 	if cluster.IpAllocationPolicy != nil {
+		hclData["networking_mode"] = "VPC_NATIVE"
 		hclData["ip_allocation_policy"] = flattenIPAllocationPolicy(cluster.IpAllocationPolicy)
+	}
+
+	if cluster.NetworkConfig != nil {
+		if cluster.NetworkConfig.DatapathProvider != "" && cluster.NetworkConfig.DatapathProvider != "DATAPATH_PROVIDER_UNSPECIFIED" {
+			hclData["datapath_provider"] = cluster.NetworkConfig.DatapathProvider
+		}
+		// Commenting out potentially missing field:
+		// if cluster.NetworkConfig.DisableL4IlbFwReconciliation {
+		// 	hclData["disable_l4_lb_firewall_reconciliation"] = true
+		// }
+		if cluster.NetworkConfig.EnableFqdnNetworkPolicy {
+			hclData["enable_fqdn_network_policy"] = true
+		}
+		if cluster.NetworkConfig.EnableL4ilbSubsetting {
+			hclData["enable_l4_ilb_subsetting"] = true
+		}
+		if cluster.NetworkConfig.EnableMultiNetworking {
+			hclData["enable_multi_networking"] = true
+		}
+	}
+
+	if cluster.DefaultMaxPodsConstraint != nil {
+		hclData["default_max_pods_per_node"] = cluster.DefaultMaxPodsConstraint.MaxPodsPerNode
+	}
+
+	if cluster.NetworkPolicy != nil {
+        flattenedPolicy := flattenNetworkPolicy(cluster.NetworkPolicy)
+        if flattenedPolicy != nil {
+		    hclData["network_policy"] = flattenedPolicy
+        }
+	}
+
+	if cluster.LoggingService != "" && cluster.LoggingService != "logging.googleapis.com" {
+		hclData["logging_service"] = cluster.LoggingService
+	}
+	if cluster.MonitoringService != "" && cluster.MonitoringService != "monitoring.googleapis.com" {
+		hclData["monitoring_service"] = cluster.MonitoringService
 	}
 
 	if cluster.AddonsConfig != nil {
 		hclData["addons_config"] = flattenAddonsConfig(cluster.AddonsConfig)
 	}
-	if cluster.Description != "" {
-		hclData["description"] = cluster.Description
+
+	if len(cluster.Locations) > 0 {
+		hclData["node_locations"] = cluster.Locations
 	}
 
 	if cluster.ResourceLabels != nil {
 		hclData["resource_labels"] = cluster.ResourceLabels
 	}
+
+	if cluster.ReleaseChannel == nil || cluster.ReleaseChannel.Channel == "" || cluster.ReleaseChannel.Channel == "UNSPECIFIED" {
+		if cluster.CurrentMasterVersion != "" {
+			hclData["master_version"] = cluster.CurrentMasterVersion
+		}
+	}
+
+	if cluster.CurrentNodeVersion != "" {
+		hclData["node_version"] = cluster.CurrentNodeVersion
+	}
+
+    // Commenting out potentially missing field:
+	// if cluster.DeletionProtection {
+	// 	hclData["deletion_protection"] = true
+	// }
+
+	if cluster.Autopilot != nil && cluster.Autopilot.Enabled {
+		hclData["enable_autopilot"] = true
+	}
+	if cluster.EnableKubernetesAlpha {
+		hclData["enable_kubernetes_alpha"] = true
+	}
+	if cluster.EnableTpu {
+		hclData["enable_tpu"] = true
+	}
+    // Commenting out potentially missing field:
+    // if cluster.IntraNodeVisibilityConfig != nil && cluster.IntraNodeVisibilityConfig.Enabled {
+    //     hclData["enable_intranode_visibility"] = true
+    // }
+	if cluster.LegacyAbac != nil && cluster.LegacyAbac.Enabled {
+		hclData["enable_legacy_abac"] = true
+	}
+	if cluster.ShieldedNodes != nil && cluster.ShieldedNodes.Enabled {
+		hclData["enable_shielded_nodes"] = true
+	}
+
+    // Commenting out potentially missing field:
+    // if cluster.PrivateIpv6GoogleAccess != "" && cluster.PrivateIpv6GoogleAccess != "PRIVATE_IPV6_GOOGLE_ACCESS_UNSPECIFIED" {
+    //     hclData["private_ipv6_google_access"] = cluster.PrivateIpv6GoogleAccess
+    // }
 
 	ctyVal, err := utils.MapToCtyValWithSchema(hclData, c.clusterSchema)
 	if err != nil {
@@ -161,9 +245,9 @@ func (c *ContainerClusterConverter) convertNodePoolData(nodePool *container.Node
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster context is nil for node pool")
 	}
-     if c.nodePoolSchema == nil {
-        return nil, fmt.Errorf("node pool schema is nil in converter")
-    }
+	if c.nodePoolSchema == nil {
+		return nil, fmt.Errorf("node pool schema is nil in converter")
+	}
 
 	hclData := make(map[string]interface{})
 
@@ -225,6 +309,8 @@ func (c *ContainerClusterConverter) convertNodePoolData(nodePool *container.Node
 		Value:  ctyVal,
 	}, nil
 }
+
+// --- ALL FLATTEN FUNCTIONS ---
 
 func flattenNodeConfig(config *container.NodeConfig) []interface{} {
 	if config == nil {
@@ -299,24 +385,27 @@ func flattenNodeConfig(config *container.NodeConfig) []interface{} {
 	}
 	return []interface{}{nodeConfig}
 }
+
 func flattenWorkloadMetadataConfig(config *container.WorkloadMetadataConfig) []interface{} {
 	if config == nil { return nil }; return []interface{}{map[string]interface{}{"mode": config.Mode}} }
+
 func flattenShieldedInstanceConfig(config *container.ShieldedInstanceConfig) []interface{} {
 	if config == nil { return nil }; return []interface{}{map[string]interface{}{"enable_secure_boot": config.EnableSecureBoot, "enable_integrity_monitoring": config.EnableIntegrityMonitoring}} }
+
 func flattenAccelerators(accelerators []*container.AcceleratorConfig) []interface{} {
 	if len(accelerators) == 0 { return nil }; result := make([]interface{}, len(accelerators)); for i, acc := range accelerators { result[i] = map[string]interface{}{"accelerator_type": acc.AcceleratorType, "accelerator_count": acc.AcceleratorCount, "gpu_partition_size": acc.GpuPartitionSize}}; return result }
+
 func flattenReservationAffinity(config *container.ReservationAffinity) []interface{} {
 	if config == nil { return nil }; ra := map[string]interface{}{"consume_reservation_type": config.ConsumeReservationType}; if len(config.Key) > 0 && len(config.Values) > 0 { ra["key"] = config.Key; ra["values"] = config.Values }; return []interface{}{ra} }
+
 func flattenConfidentialNodes(config *container.ConfidentialNodes) []interface{} {
 	if config == nil { return nil }; return []interface{}{map[string]interface{}{"enabled": config.Enabled}} }
+
 func flattenKubeletConfig(config *container.NodeKubeletConfig) []interface{} {
 	if config == nil { return nil }; kc := make(map[string]interface{}); if config.CpuManagerPolicy != "" { kc["cpu_manager_policy"] = config.CpuManagerPolicy }; if config.CpuCfsQuota { kc["cpu_cfs_quota"] = config.CpuCfsQuota }; if config.CpuCfsQuotaPeriod != "" { kc["cpu_cfs_quota_period"] = config.CpuCfsQuotaPeriod }; if config.PodPidsLimit != 0 { kc["pod_pids_limit"] = config.PodPidsLimit }; return []interface{}{kc} }
+
 func flattenLinuxNodeConfig(config *container.LinuxNodeConfig) []interface{} {
 	if config == nil { return nil }; lnc := make(map[string]interface{}); if config.Sysctls != nil { lnc["sysctls"] = config.Sysctls }; return []interface{}{lnc} }
-func flattenIPAllocationPolicy(policy *container.IPAllocationPolicy) []interface{} {
-    if policy == nil { return nil }; ipa := make(map[string]interface{}); ipa["use_ip_aliases"] = policy.UseIpAliases; if policy.ClusterSecondaryRangeName != "" { ipa["cluster_secondary_range_name"] = policy.ClusterSecondaryRangeName }; if policy.ServicesSecondaryRangeName != "" { ipa["services_secondary_range_name"] = policy.ServicesSecondaryRangeName }; if policy.ClusterIpv4CidrBlock != "" { ipa["cluster_ipv4_cidr_block"] = policy.ClusterIpv4CidrBlock }; if policy.ServicesIpv4CidrBlock != "" { ipa["services_ipv4_cidr_block"] = policy.ServicesIpv4CidrBlock }; if policy.NodeIpv4CidrBlock != "" { ipa["node_ipv4_cidr_block"] = policy.NodeIpv4CidrBlock }; if policy.CreateSubnetwork { ipa["create_subnetwork"] = policy.CreateSubnetwork }; if policy.SubnetworkName != "" { ipa["subnetwork_name"] = policy.SubnetworkName }; if policy.TpuIpv4CidrBlock != "" { ipa["tpu_ipv4_cidr_block"] = policy.TpuIpv4CidrBlock }; if policy.StackType != "" { ipa["stack_type"] = policy.StackType }; if policy.Ipv6AccessType != "" { ipa["ipv6_access_type"] = policy.Ipv6AccessType }; return []interface{}{ipa} }
-func flattenAddonsConfig(config *container.AddonsConfig) []interface{} {
-    if config == nil { return nil }; addons := make(map[string]interface{}); if config.HttpLoadBalancing != nil { addons["http_load_balancing"] = []interface{}{map[string]interface{}{"disabled": config.HttpLoadBalancing.Disabled}} }; if config.HorizontalPodAutoscaling != nil { addons["horizontal_pod_autoscaling"] = []interface{}{map[string]interface{}{"disabled": config.HorizontalPodAutoscaling.Disabled}} }; if config.NetworkPolicyConfig != nil { addons["network_policy_config"] = []interface{}{map[string]interface{}{"disabled": config.NetworkPolicyConfig.Disabled}} }; if config.CloudRunConfig != nil { crc := map[string]interface{}{"disabled": config.CloudRunConfig.Disabled}; if config.CloudRunConfig.LoadBalancerType != "" { crc["load_balancer_type"] = config.CloudRunConfig.LoadBalancerType }; addons["cloudrun_config"] = []interface{}{crc} }; if config.DnsCacheConfig != nil { addons["dns_cache_config"] = []interface{}{map[string]interface{}{"enabled": config.DnsCacheConfig.Enabled}} }; if config.GcePersistentDiskCsiDriverConfig != nil { addons["gce_persistent_disk_csi_driver_config"] = []interface{}{map[string]interface{}{"enabled": config.GcePersistentDiskCsiDriverConfig.Enabled}} }; if config.GcpFilestoreCsiDriverConfig != nil { addons["gcp_filestore_csi_driver_config"] = []interface{}{map[string]interface{}{"enabled": config.GcpFilestoreCsiDriverConfig.Enabled}} }; if config.ConfigConnectorConfig != nil { addons["config_connector_config"] = []interface{}{map[string]interface{}{"enabled": config.ConfigConnectorConfig.Enabled}} }; if config.GkeBackupAgentConfig != nil { addons["gke_backup_agent_config"] = []interface{}{map[string]interface{}{"enabled": config.GkeBackupAgentConfig.Enabled}} }; return []interface{}{addons} }
 
 func flattenNodeTaints(taints []*container.NodeTaint) []interface{} {
 	if len(taints) == 0 {
@@ -333,6 +422,57 @@ func flattenNodeTaints(taints []*container.NodeTaint) []interface{} {
 	return result
 }
 
+func flattenIPAllocationPolicy(policy *container.IPAllocationPolicy) []interface{} {
+    if policy == nil { return nil }; ipa := make(map[string]interface{}); ipa["use_ip_aliases"] = policy.UseIpAliases; if policy.ClusterSecondaryRangeName != "" { ipa["cluster_secondary_range_name"] = policy.ClusterSecondaryRangeName }; if policy.ServicesSecondaryRangeName != "" { ipa["services_secondary_range_name"] = policy.ServicesSecondaryRangeName }; if policy.ClusterIpv4CidrBlock != "" { ipa["cluster_ipv4_cidr_block"] = policy.ClusterIpv4CidrBlock }; if policy.ServicesIpv4CidrBlock != "" { ipa["services_ipv4_cidr_block"] = policy.ServicesIpv4CidrBlock }; if policy.NodeIpv4CidrBlock != "" { ipa["node_ipv4_cidr_block"] = policy.NodeIpv4CidrBlock }; if policy.CreateSubnetwork { ipa["create_subnetwork"] = policy.CreateSubnetwork }; if policy.SubnetworkName != "" { ipa["subnetwork_name"] = policy.SubnetworkName }; if policy.TpuIpv4CidrBlock != "" { ipa["tpu_ipv4_cidr_block"] = policy.TpuIpv4CidrBlock }; if policy.StackType != "" { ipa["stack_type"] = policy.StackType }; if policy.Ipv6AccessType != "" { ipa["ipv6_access_type"] = policy.Ipv6AccessType }; return []interface{}{ipa} }
+
+func flattenAddonsConfig(config *container.AddonsConfig) []interface{} {
+    if config == nil { return nil }; addons := make(map[string]interface{}); if config.HttpLoadBalancing != nil { addons["http_load_balancing"] = []interface{}{map[string]interface{}{"disabled": config.HttpLoadBalancing.Disabled}} }; if config.HorizontalPodAutoscaling != nil { addons["horizontal_pod_autoscaling"] = []interface{}{map[string]interface{}{"disabled": config.HorizontalPodAutoscaling.Disabled}} }; if config.NetworkPolicyConfig != nil { addons["network_policy_config"] = []interface{}{map[string]interface{}{"disabled": config.NetworkPolicyConfig.Disabled}} }; if config.CloudRunConfig != nil { crc := map[string]interface{}{"disabled": config.CloudRunConfig.Disabled}; if config.CloudRunConfig.LoadBalancerType != "" { crc["load_balancer_type"] = config.CloudRunConfig.LoadBalancerType }; addons["cloudrun_config"] = []interface{}{crc} }; if config.DnsCacheConfig != nil { addons["dns_cache_config"] = []interface{}{map[string]interface{}{"enabled": config.DnsCacheConfig.Enabled}} }; if config.GcePersistentDiskCsiDriverConfig != nil { addons["gce_persistent_disk_csi_driver_config"] = []interface{}{map[string]interface{}{"enabled": config.GcePersistentDiskCsiDriverConfig.Enabled}} }; if config.GcpFilestoreCsiDriverConfig != nil { addons["gcp_filestore_csi_driver_config"] = []interface{}{map[string]interface{}{"enabled": config.GcpFilestoreCsiDriverConfig.Enabled}} }; if config.ConfigConnectorConfig != nil { addons["config_connector_config"] = []interface{}{map[string]interface{}{"enabled": config.ConfigConnectorConfig.Enabled}} }; if config.GkeBackupAgentConfig != nil { addons["gke_backup_agent_config"] = []interface{}{map[string]interface{}{"enabled": config.GkeBackupAgentConfig.Enabled}} }; return []interface{}{addons} }
+
+func flattenNetworkPolicy(policy *container.NetworkPolicy) []interface{} {
+	if policy == nil {
+		return nil
+	}
+
+    hasProvider := policy.Provider != "" && policy.Provider != "PROVIDER_UNSPECIFIED"
+    // Commenting out potentially missing fields:
+    // hasAllowNetAdmin := policy.AllowNetAdmin
+    // hasEnableCilium := policy.EnableCiliumClusterwideNetworkPolicy
+
+    // Adjust logic based only on provider presence for now
+    if !hasProvider { // && !hasAllowNetAdmin && !hasEnableCilium {
+         return nil
+    }
+
+	data := make(map[string]interface{})
+
+	if hasProvider {
+		data["provider"] = policy.Provider
+	}
+    // Commenting out potentially missing fields:
+    // else {
+    //     if hasAllowNetAdmin || hasEnableCilium {
+    //         fmt.Println("Warning: NetworkPolicy boolean flags set but no Provider specified in API data. Omitting network_policy block.")
+    //         return nil
+    //     }
+    // }
+
+    // Commenting out potentially missing fields:
+    // if hasProvider {
+	//     data["allow_net_admin"] = policy.AllowNetAdmin
+    // }
+
+    // Commenting out potentially missing fields:
+    // if policy.EnableCiliumClusterwideNetworkPolicy {
+	//     data["enable_cilium_clusterwide_network_policy"] = true
+    // }
+
+    // If only provider is set, return the block with just the provider
+    if len(data) == 0 {
+        return nil // Avoid returning empty map within the list [{}]
+    }
+
+	return []interface{}{data}
+}
 
 func flattenNodePoolAutoscaling(autoscaling *container.NodePoolAutoscaling) []interface{} {
 	if autoscaling == nil {
@@ -383,9 +523,8 @@ func flattenNodePoolUpgradeSettings(settings *container.UpgradeSettings) []inter
     return []interface{}{data}
 }
 
-
 func flattenBlueGreenSettings(settings *container.BlueGreenSettings) []interface{} {
-    if settings == nil || settings.StandardRolloutPolicy == nil { // StandardRolloutPolicy is required inside
+    if settings == nil || settings.StandardRolloutPolicy == nil {
         return nil
     }
      data := make(map[string]interface{})
@@ -393,21 +532,11 @@ func flattenBlueGreenSettings(settings *container.BlueGreenSettings) []interface
      standardRolloutPolicy := make(map[string]interface{})
      standardRolloutPolicy["batch_percentage"] = settings.StandardRolloutPolicy.BatchPercentage
      standardRolloutPolicy["batch_node_count"] = settings.StandardRolloutPolicy.BatchNodeCount
-     // Add duration parsing here if needed
-     // if soakDurationSec, err := DurationToSeconds(settings.StandardRolloutPolicy.BatchSoakDuration); err == nil && soakDurationSec > 0 {
-     //  standardRolloutPolicy["batch_soak_duration_sec"] = soakDurationSec
-     // }
 
      data["standard_rollout_policy"] = []interface{}{standardRolloutPolicy}
 
-     // Add duration parsing here if needed
-     // if soakDurationSec, err := DurationToSeconds(settings.NodePoolSoakDuration); err == nil && soakDurationSec > 0 {
-     //  data["node_pool_soak_duration_sec"] = soakDurationSec
-     // }
-
      return []interface{}{data}
 }
-
 
 func flattenMaxPodsConstraint(constraint *container.MaxPodsConstraint) []interface{} {
 	if constraint == nil {
@@ -451,5 +580,3 @@ func flattenPlacementPolicy(policy *container.PlacementPolicy) []interface{} {
     }
     return []interface{}{data}
 }
-
-// Add other flatten functions (e.g., flattenPrivateClusterConfig, flattenMasterAuth) if needed
