@@ -8,6 +8,10 @@ resource "google_container_cluster" "cluster-zonal-1" {
       enabled = true
     }
 
+    gcs_fuse_csi_driver_config {
+      enabled = false
+    }
+
     horizontal_pod_autoscaling {
       disabled = false
     }
@@ -18,6 +22,10 @@ resource "google_container_cluster" "cluster-zonal-1" {
 
     network_policy_config {
       disabled = true
+    }
+
+    ray_operator_config {
+      enabled = false
     }
   }
 
@@ -62,10 +70,13 @@ resource "google_container_node_pool" "pool-name" {
   }
 
   node_config {
-    disk_size_gb   = 100
-    disk_type      = "pd-balanced"
-    image_type     = "COS_CONTAINERD"
-    kubelet_config = {}
+    disk_size_gb = 100
+    disk_type    = "pd-balanced"
+    image_type   = "COS_CONTAINERD"
+
+    kubelet_config {
+      cpu_cfs_quota = false
+    }
 
     machine_type = "e2-medium"
 
