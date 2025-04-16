@@ -1,6 +1,117 @@
-Certainly! Here is a **strict list of fields** (including nested blocks) that must be handled by your converter to produce a Terraform resource block for `google_container_cluster` that matches your zonal-clustet.tf output **100% accurately** from the provided CAI asset.
+# GKE Cluster Converter - Past TODOs and Discrepancies
+
+This document consolidates previously identified areas for improvement, discrepancies found during testing, and specific field requirements for the GKE cluster converter.
 
 ---
+
+## General Improvements / Missing Features (Initial List)
+
+### `google_container_cluster` Resource Improvements:
+
+* **Add Missing Blocks:** The converter was missing several configuration blocks entirely. Adding these would significantly improve coverage:
+    * `master_auth`: Crucial for authentication configuration. Needs a `flattenMasterAuth` function.
+    * `private_cluster_config`: Essential for configuring private clusters. Needs `flattenPrivateClusterConfig`.
+    * `release_channel`: Very common way to manage versions. Needs `flattenReleaseChannel`.
+    * `logging_config` / `monitoring_config`: Provide finer-grained control than just `logging_service` / `monitoring_service`. Need `flattenLoggingConfig` and `flattenMonitoringConfig`.
+    * `cluster_autoscaling`: Configuration for node pool auto-provisioning. Needs `flattenClusterAutoscaling`.
+    * `database_encryption`: For enabling CMEK for secrets. Needs `flattenDatabaseEncryption`.
+    * `vertical_pod_autoscaling`: Although not in the specific TF output example, this is another common addon.
+    * Others from TF output like `binary_authorization`, `default_snat_status`, `notification_config`, etc., could be added based on priority.
+* **Fix/Uncomment Missing Top-Level Fields:** Revisit fields that caused build errors. Find the correct field names/locations in the `container/v1` library version:
+    * `deletion_protection` (API: `DeletionProtection bool`?)
+    * `enable_intranode_visibility` (API: `IntraNodeVisibilityConfig.Enabled bool`?)
+    * `private_ipv6_google_access` (API: `PrivateIpv6GoogleAccess string` enum?)
+* **Fix/Uncomment `network_policy` Fields:** Revisit commented-out fields within `flattenNetworkPolicy`. Find correct API field names for:
+    * `allow_net_admin` (API: `AllowNetAdmin bool`?)
+    * `enable_cilium_clusterwide_network_policy` (API: `EnableCiliumClusterwideNetworkPolicy bool`?)
+    * Restructure `flattenNetworkPolicy` if needed to better match TF schema (`enabled` and `provider`).
+* **Refine `ip_allocation_policy`:** Add the nested `pod_cidr_overprovision_config` block within `flattenIPAllocationPolicy`.
+* **Handle `initial_node_count` Correctly:** When `remove_default_node_pool` is true, Terraform often requires `initial_node_count` to be set (e.g., to 1). The converter currently omits it. It should probably default to setting `initial_node_count = 1` in this scenario. (Note: Later analysis suggested omitting cluster-level versioning/counts if `remove_default_node_pool=true`).
+* **Refine `network`/`subnetwork` Output:** Output full self-link or path instead of just the name ("default").
+* **Verify `node_locations` Mapping:** Double-check if `cluster.Locations` is the correct API source field for cluster-level `node_locations`.
+
+### `google_container_node_pool` Resource Improvements:
+
+* **Add Missing Top-Level Fields:**
+    * `max_pods_per_node`: Map from `nodePool.MaxPodsConstraint.MaxPodsPerNode`.
+    * `node_locations`: Map from `nodePool.Locations`.
+* **Add Missing Blocks:**
+    * `placement_policy`: Ensure `flattenPlacementPolicy` is complete and called.
+    * `queued_provisioning`: Add `flattenQueuedProvisioning` if needed.
+* **Expand `node_config` Flattening (`flattenNodeConfig`):**
+    * Add mappings for simple fields: `labels`, `resource_labels`, `tags`, `logging_variant`, `boot_disk_kms_key`.
+    * Consider explicitly setting booleans like `preemptible` and `spot` to `false` to match state, or stick to omitting defaults.
+    * Expand `flattenKubeletConfig` for more detail (log/GC settings, etc.).
+    * Add flatteners for `advanced_machine_features` and `windows_node_config`.
+* **Expand `network_config` Flattening (`flattenNodeNetworkConfig`):**
+    * Add mapping for `enable_private_nodes`.
+
+---
+
+## Compiler Error Fixes and Refactoring Notes (from File 2 Analysis)
+
+* **Fix Errors:** Address fields causing compiler errors (`LoggingVariant`, `CpuCfsQuota`, `AutoscalingProfile` (x2), `MaxSurge`, `MaxUnavailable`, `EnableCiliumClusterwideNetworkPolicy`) by finding the correct field/type or removing access. Use provider code as a strong hint for correct types (`bool`, `int64`).
+* **Refactor `flattenPrivateClusterConfig`:** Rewrite based on provider's approach using CPEC, PCC, NC inputs.
+* **Update `flattenNetworkPolicy`:** Remove CALICO default, remove Cilium field access. Keep Enabled check and nil return.
+* **Update `flattenNodePoolUpgradeSettings`:** Change `MaxSurge`/`Unavailable` handling to value types (`int64`).
+* **Review `flattenBlueGreenSettings`:** Simplify standard policy logic? Implement duration parsing?
+* **Update `flattenReleaseChannel`:** Consider outputting `UNSPECIFIED` explicitly (Note: Later decided against this to omit defaults).
+* **Check Addons/Monitoring:** Add missing `ParallelstoreCsiDriverConfig`, `auto_monitoring_config`. Verify `RayOperatorConfig` detail & `AdvancedDatapathObservabilityConfig` fields.
+* **Review `flattenIPAllocationPolicy`:** Simplify CIDR logic? Align `StackType` default?
+* **(Low Priority/Consistency):** Align return types (`[]map` vs `[]interface`)? Standardize nil/default block handling?
+
+---
+
+## Discrepancies Found vs. `zonal-clustet.tf` Example (Based on File 2/3 Analysis)
+
+### 1. Missing Top-Level Arguments in Converted Output
+The following fields were present in the reference `zonal-clustet.tf` but missing in the converter's output for that specific example:
+
+* `allow_net_admin`
+* `datapath_provider` (Note: Was default, removed during cleanup)
+* `default_max_pods_per_node`
+* `deletion_protection` (Note: Was default, removed during cleanup)
+* `description`
+* `disable_l4_lb_firewall_reconciliation` (Note: Was default, removed during cleanup)
+* `enable_autopilot` (Note: Was default, removed during cleanup)
+* `enable_cilium_clusterwide_network_policy` (Note: Was default, removed during cleanup)
+* `enable_fqdn_network_policy` (Note: Was default, removed during cleanup)
+* `enable_intranode_visibility` (Note: Was default, removed during cleanup)
+* `enable_kubernetes_alpha` (Note: Was default, removed during cleanup)
+* `enable_l4_ilb_subsetting` (Note: Was default, removed during cleanup)
+* `enable_legacy_abac` (Note: Was default, removed during cleanup)
+* `enable_multi_networking` (Note: Was default, removed during cleanup)
+* `enable_shielded_nodes` (Note: Was default, removed during cleanup)
+* `enable_tpu` (Note: Was default, removed during cleanup)
+* `initial_node_count` (Note: Should be removed if `remove_default_node_pool=true`)
+* `location` (**CRITICAL MISSING FIELD**)
+* `logging_service` (Note: Was default, removed during cleanup)
+* `min_master_version`
+* `monitoring_service` (Note: Was default, removed during cleanup)
+* `networking_mode` (Note: Was default/implied, removed during cleanup)
+* `node_locations` (Note: Was default/empty, removed during cleanup)
+* `node_version`
+* `private_ipv6_google_access`
+* `remove_default_node_pool`
+* `resource_labels` (Note: Was default/empty, removed during cleanup)
+
+### 2. Block/Nested Structure Differences in Converted Output
+
+* **Missing Blocks:** `authenticator_groups_config`, `binary_authorization`, `cluster_autoscaling`, `control_plane_endpoints_config`, `database_encryption`, `default_snat_status`, `enterprise_config`, `fleet`, `logging_config`, `master_auth`, `monitoring_config`, `network_policy`, `node_pool` (inline version), `node_pool_auto_config`, `node_pool_defaults`, `notification_config`, `private_cluster_config`, `release_channel`, `secret_manager_config`, `security_posture_config`, `service_external_ips_config`.
+* **Partially Missing Blocks:** `addons_config` was missing `gcs_fuse_csi_driver_config` and `ray_operator_config`. (Note: Many blocks were correctly removed during cleanup as they only contained defaults).
+
+### 3. Field Value Differences
+
+* Network/Subnetwork paths used short names ("default") instead of full resource paths.
+* Some blocks had fewer fields due to default value omission (which is desired, but need verification).
+
+---
+
+## Strict Field List for 100% `zonal-clustet.tf` Accuracy (from CAI)
+
+*To achieve 100% accurate conversion **for the specific `zonal-clustet.tf` example provided earlier**, the converter must handle the extraction and mapping of all fields listed below from the corresponding CAI asset.*
+
+*(Note: Many of these were likely set to default values in the original `zonal-clustet.tf` export and were removed in the cleaned-up version. This list represents the potential fields present in the CAI export.)*
 
 ### Top-level Fields
 - allow_net_admin
@@ -35,8 +146,6 @@ Certainly! Here is a **strict list of fields** (including nested blocks) that mu
 - remove_default_node_pool
 - resource_labels
 - subnetwork
-
----
 
 ### Nested Blocks
 
@@ -103,7 +212,7 @@ Certainly! Here is a **strict list of fields** (including nested blocks) that mu
 - enabled
 - provider
 
-#### node_config
+#### node_config (Cluster Level - Only if default pool not removed)
 - boot_disk_kms_key
 - disk_size_gb
 - disk_type
@@ -144,25 +253,8 @@ Certainly! Here is a **strict list of fields** (including nested blocks) that mu
 - shielded_instance_config.enable_secure_boot
 - windows_node_config.osversion
 
-#### node_pool (repeated block)
-- initial_node_count
-- max_pods_per_node
-- name
-- name_prefix
-- node_count
-- node_locations
-- version
-- management.auto_repair
-- management.auto_upgrade
-- network_config.create_pod_range
-- network_config.enable_private_nodes
-- network_config.pod_ipv4_cidr_block
-- network_config.pod_range
-- node_config (same as above)
-- queued_provisioning.enabled
-- upgrade_settings.max_surge
-- upgrade_settings.max_unavailable
-- upgrade_settings.strategy
+#### node_pool (Repeated Block - Handled by separate resource converter)
+- *Fields within this block are handled by the `google_container_node_pool` converter*
 
 #### node_pool_auto_config
 - resource_manager_tags
@@ -196,119 +288,6 @@ Certainly! Here is a **strict list of fields** (including nested blocks) that mu
 - enabled
 
 ---
-
-**Note:**  
-- Some fields may be `null` or empty in the CAI asset, but must still be handled for strict fidelity.
-- Some blocks (like `node_pool`) are repeated/nested and must be handled as lists.
-- You may need to map CAI field names to Terraform field names (they sometimes differ).
-
----
-
-**To achieve 100% accurate conversion, your converter must extract and map all of the above fields and nested blocks from the CAI asset to the Terraform resource.**
-
-
-
-
-
-1. Missing Top-Level Arguments
-The following fields are present in zonal-clustet.tf but missing in converted.tf:
-
-allow_net_admin
-datapath_provider
-default_max_pods_per_node
-deletion_protection
-description
-disable_l4_lb_firewall_reconciliation
-enable_autopilot
-enable_cilium_clusterwide_network_policy
-enable_fqdn_network_policy
-enable_intranode_visibility
-enable_kubernetes_alpha
-enable_l4_ilb_subsetting
-enable_legacy_abac
-enable_multi_networking
-enable_shielded_nodes
-enable_tpu
-initial_node_count
-location
-logging_service
-min_master_version
-monitoring_service
-networking_mode
-node_locations
-node_version
-private_ipv6_google_access
-remove_default_node_pool
-resource_labels
-2. Block/Nested Structure Differences
-add-ons config
-converted.tf is missing:
-gcs_fuse_csi_driver_config
-ray_operator_config
-Some blocks may have different default values or missing fields.
-authenticator_groups_config
-Present in zonal-clustet.tf, missing in converted.tf.
-binary_authorization
-Present in zonal-clustet.tf, missing in converted.tf.
-cluster_autoscaling
-Present in zonal-clustet.tf, missing in converted.tf.
-control_plane_endpoints_config
-Present in zonal-clustet.tf, missing in converted.tf.
-database_encryption
-Present in zonal-clustet.tf, missing in converted.tf.
-default_snat_status
-Present in zonal-clustet.tf, missing in converted.tf.
-enterprise_config
-Present in zonal-clustet.tf, missing in converted.tf.
-fleet
-Present in zonal-clustet.tf, missing in converted.tf.
-logging_config
-Present in zonal-clustet.tf, missing in converted.tf.
-master_auth
-Present in zonal-clustet.tf, missing in converted.tf.
-monitoring_config
-Present in zonal-clustet.tf, missing in converted.tf.
-network_policy
-Present in zonal-clustet.tf, missing in converted.tf.
-node_pool and related sub-blocks
-Present in zonal-clustet.tf, missing in converted.tf.
-node_pool_auto_config
-Present in zonal-clustet.tf, missing in converted.tf.
-node_pool_defaults
-Present in zonal-clustet.tf, missing in converted.tf.
-notification_config
-Present in zonal-clustet.tf, missing in converted.tf.
-private_cluster_config
-Present in zonal-clustet.tf, missing in converted.tf.
-release_channel
-Present in zonal-clustet.tf, missing in converted.tf.
-secret_manager_config
-Present in zonal-clustet.tf, missing in converted.tf.
-security_posture_config
-Present in zonal-clustet.tf, missing in converted.tf.
-service_external_ips_config
-Present in zonal-clustet.tf, missing in converted.tf.
-3. Field Value Differences
-Some fields in converted.tf use short names for network/subnetwork ("default") instead of full resource paths as in zonal-clustet.tf.
-Some blocks in converted.tf have fewer or defaulted values compared to the more explicit values in zonal-clustet.tf.
-4. Instructions for LLM
-Here’s a sample instruction you can give to an LLM to improve the converter:
-
-Instruction Example:
-
-Update the GKE cluster CAI-to-Terraform converter so that it produces a google_container_cluster resource with all fields and nested blocks present in the real Terraform output (zonal-clustet.tf).
-Specifically:
-
-Map all top-level arguments from the CAI asset to their Terraform equivalents, including those currently missing (see list above).
-For each nested block (e.g., addons_config, authenticator_groups_config, binary_authorization, etc.), ensure all subfields and sub-blocks are mapped and populated as in the reference TF.
-Use full resource paths for fields like network and subnetwork, not just short names.
-Ensure all default and explicit values are set to match the real TF output, even if they are default or null.
-If a field or block is missing in the CAI asset, set it to null, {}, or the default value as appropriate for Terraform.
-The goal is for the converter output to be structurally and semantically identical to the hand-written zonal-clustet.tf.
-Summary Table:
-
-Section/Field	In Reference TF	In Converted TF	Action Needed
-Top-level fields	Yes	No	Add all missing fields
-Nested blocks (e.g. addons)	Yes	Partially	Add all missing sub-blocks
-Full resource paths	Yes	No	Use full paths
-Default/null values	Yes	Partially	Set as in reference TF
+**Note:**
+- Some fields might be `null` or empty in the CAI asset but may need specific handling for Terraform representation.
+- CAI field names might need mapping to Terraform field names.
