@@ -1,0 +1,115 @@
+[{
+  "name": "//container.googleapis.com/projects/test-project-123/regions/europe-west4/clusters/autopilot-cluster",
+  "asset_type": "container.googleapis.com/Cluster",
+  "resource": {
+    "version": "v1",
+    "discovery_document_uri": "https://container.googleapis.com/$discovery/rest",
+    "discovery_name": "Cluster",
+    "parent": "//cloudresourcemanager.googleapis.com/projects/test-project-123",
+    "data": {
+      "name": "autopilot-cluster",
+      "location": "europe-west4",
+      "locations": ["europe-west4-a", "europe-west4-b", "europe-west4-c"],
+      "addonsConfig": {
+        "networkPolicyConfig": {"disabled": true},
+        "httpLoadBalancing": {},
+        "horizontalPodAutoscaling": {},
+        "dnsCacheConfig": {"enabled": true},
+        "gcePersistentDiskCsiDriverConfig": {"enabled": true}
+      },
+      "autopilot": {
+        "enabled": true
+      },
+      "binaryAuthorization": {"evaluationMode": "DISABLED"},
+      "network": "autopilot-vpc",
+      "subnetwork": "autopilot-subnet",
+      "networkConfig": {
+        "network": "projects/test-project-123/global/networks/autopilot-vpc",
+        "subnetwork": "projects/test-project-123/regions/europe-west4/subnetworks/autopilot-subnet",
+        "datapathProvider": "ADVANCED_DATAPATH",
+        "enableIntraNodeVisibility": true,
+        "serviceExternalIpsConfig": {
+          "enabled": false
+        }
+      },
+      "currentMasterVersion": "1.31.5-gke.1233001",
+      "loggingConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "WORKLOADS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER"]
+        }
+      },
+      "monitoringConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "WORKLOADS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER"]
+        },
+        "managedPrometheusConfig": {
+          "enabled": true,
+          "autoMonitoringConfig": {
+            "scope": "ALL"
+          }
+        }
+      },
+      "ipAllocationPolicy": {
+        "clusterIpv4CidrBlock": "10.90.0.0/14",
+        "servicesIpv4CidrBlock": "10.95.0.0/20",
+        "stackType": "IPV4",
+        "useIpAliases": true
+      },
+      "releaseChannel": {
+        "channel": "REGULAR"
+      },
+      "costManagementConfig": {
+        "enabled": true
+      },
+      "maintenancePolicy": {
+        "window": {
+          "recurringWindow": {
+            "window": {
+              "startTime": "2025-01-01T07:00:00Z",
+              "endTime": "2025-01-01T19:00:00Z"
+            },
+            "recurrence": "FREQ=WEEKLY;BYDAY=SA,SU"
+          }
+        },
+        "maintenanceExclusion": [
+          {
+            "exclusionName": "blackout-period",
+            "startTime": "2025-12-01T00:00:00Z",
+            "endTime": "2026-01-02T00:00:00Z",
+            "exclusionOptions": {
+              "scope": "NO_UPGRADES"
+            }
+          }
+        ]
+      },
+      "resourceUsageExportConfig": {
+        "bigqueryDestination": {
+          "datasetId": "gke_usage_dataset"
+        },
+        "enableNetworkEgressMetering": true,
+        "enableResourceConsumptionMetering": true
+      },
+      "verticalPodAutoscaling": {
+        "enabled": true
+      },
+      "notificationConfig": {
+        "pubsub": {
+          "enabled": true,
+          "topic": "projects/test-project-123/topics/gke-notifications"
+        }
+      },
+      "shieldedNodes": {"enabled": true},
+      "workloadIdentityConfig": {
+        "workloadPool": "test-project-123.svc.id.goog"
+      },
+      "status": "RUNNING"
+    },
+    "location": "europe-west4"
+  },
+  "ancestors": [
+    "projects/test-project-123",
+    "folders/123456789012",
+    "organizations/987654321098"
+  ],
+  "update_time": "2025-04-18T10:00:00.000000Z"
+}]

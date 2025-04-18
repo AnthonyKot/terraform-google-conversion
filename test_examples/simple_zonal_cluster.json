@@ -1,0 +1,102 @@
+[{
+  "name": "//container.googleapis.com/projects/test-project-123/zones/us-central1-c/clusters/simple-cluster",
+  "asset_type": "container.googleapis.com/Cluster",
+  "resource": {
+    "version": "v1",
+    "discovery_document_uri": "https://container.googleapis.com/$discovery/rest",
+    "discovery_name": "Cluster",
+    "parent": "//cloudresourcemanager.googleapis.com/projects/test-project-123",
+    "data": {
+      "name": "simple-cluster",
+      "location": "us-central1-c",
+      "zone": "us-central1-c",
+      "locations": ["us-central1-c"],
+      "addonsConfig": {
+        "networkPolicyConfig": {"disabled": true},
+        "httpLoadBalancing": {},
+        "horizontalPodAutoscaling": {},
+        "kubernetesDashboard": {"disabled": true},
+        "dnsCacheConfig": {},
+        "gcePersistentDiskCsiDriverConfig": {"enabled": true}
+      },
+      "binaryAuthorization": {"evaluationMode": "DISABLED"},
+      "network": "default",
+      "subnetwork": "default",
+      "networkConfig": {
+        "network": "projects/test-project-123/global/networks/default",
+        "subnetwork": "projects/test-project-123/regions/us-central1/subnetworks/default",
+        "datapathProvider": "LEGACY_DATAPATH"
+      },
+      "currentMasterVersion": "1.31.5-gke.1233001",
+      "currentNodeVersion": "1.31.5-gke.1233001",
+      "defaultMaxPodsConstraint": {"maxPodsPerNode": "110"},
+      "loggingConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "WORKLOADS"]
+        }
+      },
+      "monitoringConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "KUBELET"]
+        },
+        "managedPrometheusConfig": {"enabled": true}
+      },
+      "ipAllocationPolicy": {
+        "clusterIpv4CidrBlock": "10.0.0.0/14",
+        "servicesIpv4CidrBlock": "10.1.0.0/20",
+        "clusterSecondaryRangeName": "gke-simple-cluster-pods-1",
+        "stackType": "IPV4",
+        "useIpAliases": true
+      },
+      "nodeConfig": {
+        "machineType": "e2-medium",
+        "diskSizeGb": 100,
+        "diskType": "pd-standard",
+        "oauthScopes": [
+          "https://www.googleapis.com/auth/devstorage.read_only",
+          "https://www.googleapis.com/auth/logging.write",
+          "https://www.googleapis.com/auth/monitoring",
+          "https://www.googleapis.com/auth/service.management.readonly",
+          "https://www.googleapis.com/auth/servicecontrol",
+          "https://www.googleapis.com/auth/trace.append"
+        ],
+        "metadata": {"disable-legacy-endpoints": "true"},
+        "imageType": "COS_CONTAINERD",
+        "serviceAccount": "default"
+      },
+      "nodePools": [{
+        "name": "default-pool",
+        "config": {
+          "machineType": "e2-medium",
+          "diskSizeGb": 100,
+          "diskType": "pd-standard",
+          "oauthScopes": [
+            "https://www.googleapis.com/auth/devstorage.read_only",
+            "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/monitoring",
+            "https://www.googleapis.com/auth/service.management.readonly",
+            "https://www.googleapis.com/auth/servicecontrol",
+            "https://www.googleapis.com/auth/trace.append"
+          ],
+          "metadata": {"disable-legacy-endpoints": "true"},
+          "imageType": "COS_CONTAINERD",
+          "serviceAccount": "default"
+        },
+        "initialNodeCount": 1,
+        "locations": ["us-central1-c"],
+        "management": {"autoRepair": true, "autoUpgrade": true},
+        "maxPodsConstraint": {"maxPodsPerNode": "110"},
+        "version": "1.31.5-gke.1233001"
+      }],
+      "shieldedNodes": {"enabled": true},
+      "status": "RUNNING"
+    },
+    "location": "us-central1-c"
+  },
+  "ancestors": [
+    "projects/test-project-123",
+    "folders/123456789012",
+    "organizations/987654321098"
+  ],
+  "update_time": "2025-04-18T10:00:00.000000Z"
+}]

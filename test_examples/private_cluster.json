@@ -1,0 +1,141 @@
+[{
+  "name": "//container.googleapis.com/projects/test-project-123/zones/us-east1-b/clusters/private-cluster",
+  "asset_type": "container.googleapis.com/Cluster",
+  "resource": {
+    "version": "v1",
+    "discovery_document_uri": "https://container.googleapis.com/$discovery/rest",
+    "discovery_name": "Cluster",
+    "parent": "//cloudresourcemanager.googleapis.com/projects/test-project-123",
+    "data": {
+      "name": "private-cluster",
+      "location": "us-east1-b",
+      "zone": "us-east1-b",
+      "locations": ["us-east1-b"],
+      "addonsConfig": {
+        "networkPolicyConfig": {"disabled": false},
+        "httpLoadBalancing": {},
+        "horizontalPodAutoscaling": {},
+        "kubernetesDashboard": {"disabled": true},
+        "dnsCacheConfig": {"enabled": true},
+        "gcePersistentDiskCsiDriverConfig": {"enabled": true}
+      },
+      "binaryAuthorization": {"evaluationMode": "DISABLED"},
+      "network": "vpc-private",
+      "subnetwork": "private-subnet",
+      "networkConfig": {
+        "network": "projects/test-project-123/global/networks/vpc-private",
+        "subnetwork": "projects/test-project-123/regions/us-east1/subnetworks/private-subnet",
+        "datapathProvider": "ADVANCED_DATAPATH",
+        "enablePrivateNodes": true,
+        "defaultSnatStatus": {
+          "disabled": true
+        },
+        "enableIntraNodeVisibility": true
+      },
+      "privateClusterConfig": {
+        "enablePrivateNodes": true,
+        "enablePrivateEndpoint": true,
+        "masterIpv4CidrBlock": "172.16.0.0/28",
+        "privateEndpoint": "172.16.0.2",
+        "masterGlobalAccessConfig": {
+          "enabled": false
+        }
+      },
+      "masterAuthorizedNetworksConfig": {
+        "enabled": true,
+        "cidrBlocks": [
+          {
+            "displayName": "VPN Network",
+            "cidrBlock": "10.60.0.0/16"
+          },
+          {
+            "displayName": "Cloud NAT",
+            "cidrBlock": "10.70.0.0/16"
+          }
+        ]
+      },
+      "currentMasterVersion": "1.31.5-gke.1233001",
+      "currentNodeVersion": "1.31.5-gke.1233001",
+      "defaultMaxPodsConstraint": {"maxPodsPerNode": "110"},
+      "loggingConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "WORKLOADS"]
+        }
+      },
+      "monitoringConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "KUBELET"]
+        },
+        "managedPrometheusConfig": {"enabled": true}
+      },
+      "ipAllocationPolicy": {
+        "clusterIpv4CidrBlock": "10.10.0.0/14",
+        "servicesIpv4CidrBlock": "10.15.0.0/20",
+        "clusterSecondaryRangeName": "pod-range",
+        "servicesSecondaryRangeName": "svc-range",
+        "stackType": "IPV4",
+        "useIpAliases": true
+      },
+      "nodeConfig": {
+        "machineType": "n2-standard-2",
+        "diskSizeGb": 100,
+        "diskType": "pd-standard",
+        "oauthScopes": [
+          "https://www.googleapis.com/auth/devstorage.read_only",
+          "https://www.googleapis.com/auth/logging.write",
+          "https://www.googleapis.com/auth/monitoring",
+          "https://www.googleapis.com/auth/service.management.readonly",
+          "https://www.googleapis.com/auth/servicecontrol",
+          "https://www.googleapis.com/auth/trace.append"
+        ],
+        "metadata": {"disable-legacy-endpoints": "true"},
+        "imageType": "COS_CONTAINERD",
+        "serviceAccount": "private-cluster-sa@test-project-123.iam.gserviceaccount.com",
+        "tags": ["private-cluster", "internal-only"]
+      },
+      "nodePools": [{
+        "name": "private-pool",
+        "config": {
+          "machineType": "n2-standard-2",
+          "diskSizeGb": 100,
+          "diskType": "pd-standard",
+          "oauthScopes": [
+            "https://www.googleapis.com/auth/devstorage.read_only",
+            "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/monitoring",
+            "https://www.googleapis.com/auth/service.management.readonly",
+            "https://www.googleapis.com/auth/servicecontrol",
+            "https://www.googleapis.com/auth/trace.append"
+          ],
+          "metadata": {"disable-legacy-endpoints": "true"},
+          "imageType": "COS_CONTAINERD",
+          "serviceAccount": "private-cluster-sa@test-project-123.iam.gserviceaccount.com",
+          "tags": ["private-cluster", "internal-only"]
+        },
+        "initialNodeCount": 1,
+        "locations": ["us-east1-b"],
+        "management": {"autoRepair": true, "autoUpgrade": true},
+        "maxPodsConstraint": {"maxPodsPerNode": "110"},
+        "version": "1.31.5-gke.1233001",
+        "networkConfig": {
+          "enablePrivateNodes": true,
+          "podIpv4CidrBlock": "10.10.0.0/14",
+          "podRange": "pod-range"
+        }
+      }],
+      "networkPolicy": {
+        "provider": "CALICO",
+        "enabled": true
+      },
+      "shieldedNodes": {"enabled": true},
+      "status": "RUNNING"
+    },
+    "location": "us-east1-b"
+  },
+  "ancestors": [
+    "projects/test-project-123",
+    "folders/123456789012",
+    "organizations/987654321098"
+  ],
+  "update_time": "2025-04-18T10:00:00.000000Z"
+}]

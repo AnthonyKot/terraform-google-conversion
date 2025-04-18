@@ -323,10 +323,8 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 		hclData["default_max_pods_per_node"] = cluster.DefaultMaxPodsConstraint.MaxPodsPerNode
 	}
 
-	// Network Policy Block: omit if nil or disabled (default)
-	if flattened := flattenNetworkPolicy(cluster.NetworkPolicy); flattened != nil {
-		hclData["network_policy"] = flattened
-	}
+	// Always include network_policy, will default to disabled with PROVIDER_UNSPECIFIED if not specified
+	hclData["network_policy"] = flattenNetworkPolicy(cluster.NetworkPolicy)
 
 	// Logging / Monitoring: Omit service if default AND config block is nil/default
 	loggingConfigBlock := flattenLoggingConfig(cluster.LoggingConfig)
@@ -361,18 +359,15 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 		hclData["resource_labels"] = cluster.ResourceLabels
 	}
 
-	// Release Channel / Versions
-	releaseChannelBlock := flattenReleaseChannel(cluster.ReleaseChannel)
-	if releaseChannelBlock != nil {
-		hclData["release_channel"] = releaseChannelBlock
-	} else {
-		// Set node_version from CurrentNodeVersion (as per target schema)
-		if cluster.CurrentNodeVersion != "" {
-			hclData["node_version"] = cluster.CurrentNodeVersion
-		}
-		
-		// master_version not included in target schema, omitting
+	// Always include release_channel, will default to UNSPECIFIED if not specified
+	hclData["release_channel"] = flattenReleaseChannel(cluster.ReleaseChannel)
+	
+	// Set node_version from CurrentNodeVersion (as per target schema)
+	if cluster.CurrentNodeVersion != "" {
+		hclData["node_version"] = cluster.CurrentNodeVersion
 	}
+	
+	// master_version not included in target schema, omitting
 
 	// Boolean flags - Omit if default (usually false, check schema)
 	if cluster.Autopilot != nil && cluster.Autopilot.Enabled { // Default false
@@ -407,9 +402,11 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 	if flattened := flattenClusterAutoscaling(cluster.Autoscaling); flattened != nil {
 		hclData["cluster_autoscaling"] = flattened
 	}
-	if flattened := flattenDatabaseEncryption(cluster.DatabaseEncryption); flattened != nil {
-		hclData["database_encryption"] = flattened
-	}
+	// Always include database_encryption, will default to DECRYPTED if not specified
+	hclData["database_encryption"] = flattenDatabaseEncryption(cluster.DatabaseEncryption)
+	
+	// Always include enterprise_config, will default to STANDARD tier if not specified
+	hclData["enterprise_config"] = flattenEnterpriseConfig(cluster.EnterpriseConfig)
 	if flattened := flattenVerticalPodAutoscaling(cluster.VerticalPodAutoscaling); flattened != nil {
 		hclData["vertical_pod_autoscaling"] = flattened
 	}
@@ -494,21 +491,25 @@ func (c *ContainerClusterConverter) convertNodePoolData(nodePool *container.Node
 		hclData["project"] = project
 	}
 
-	// Node count / Autoscaling - omit node_count if autoscaling is enabled or if count is 0/default
+	// Node count / Autoscaling - Handle initial_node_count and node_count appropriately
 	autoscalingBlock := flattenNodePoolAutoscaling(nodePool.Autoscaling)
 	if autoscalingBlock != nil {
 		hclData["autoscaling"] = autoscalingBlock
-		// initial_node_count can exist with autoscaling, but TF schema might handle default?
-		// Let's only set it if explicitly > 0 from API.
+		// With autoscaling, always include initial_node_count
 		if nodePool.InitialNodeCount > 0 {
 			hclData["initial_node_count"] = nodePool.InitialNodeCount
+		} else {
+			// Default to 1 if not specified
+			hclData["initial_node_count"] = 1
 		}
 	} else {
-		// Autoscaling is disabled or default. Set node_count only if > 0.
-		// TF default for node_count might be 1 or 3? Assume 0 means "use default".
+		// Autoscaling is disabled or default. Always include node_count.
 		if nodePool.InitialNodeCount > 0 {
 			hclData["node_count"] = nodePool.InitialNodeCount
-		} // Omit node_count if 0 (use TF default)
+		} else {
+			// Default to 1 if not specified
+			hclData["node_count"] = 1
+		}
 	}
 
 	// Node Config: omit if nil or only contains defaults
@@ -553,6 +554,9 @@ func (c *ContainerClusterConverter) convertNodePoolData(nodePool *container.Node
 	if len(nodePool.Locations) > 0 {
 		hclData["node_locations"] = nodePool.Locations
 	}
+	
+	// Always include queued_provisioning with enabled=false as the default
+	hclData["queued_provisioning"] = flattenQueuedProvisioning(nodePool.QueuedProvisioning)
 
 	// Check if HCL data is empty (beyond required fields name, cluster, location, project)
 	if len(hclData) <= 4 {
@@ -577,11 +581,51 @@ func (c *ContainerClusterConverter) convertNodePoolData(nodePool *container.Node
 
 // --- FLATTEN FUNCTIONS (Revised for Default Omission) ---
 
+// flattenQueuedProvisioning creates a block for queued_provisioning with enabled=false as the default
+func flattenQueuedProvisioning(config *container.QueuedProvisioning) []interface{} {
+	qp := make(map[string]interface{})
+	
+	// Always set enabled to false by default
+	qp["enabled"] = false
+	
+	// If config exists and enabled is true, override the default
+	if config != nil && config.Enabled {
+		qp["enabled"] = true
+	}
+	
+	return []interface{}{qp}
+}
+
+// flattenAdvancedMachineFeatures creates a block for advanced_machine_features with enable_nested_virtualization=false as the default
+func flattenAdvancedMachineFeatures(config *container.AdvancedMachineFeatures) []interface{} {
+	amf := make(map[string]interface{})
+	
+	// Always set enable_nested_virtualization to false by default
+	amf["enable_nested_virtualization"] = false
+	
+	// If config exists and enable_nested_virtualization is true, override the default
+	if config != nil && config.EnableNestedVirtualization {
+		amf["enable_nested_virtualization"] = true
+	}
+	
+	return []interface{}{amf}
+}
+
 // flattenNodeConfig now checks against defaults and returns nil if only defaults are present.
 func flattenNodeConfig(config *container.NodeConfig) []interface{} {
 	if config == nil {
-		return nil
+		// Create default node config with our required defaults
+		nodeConfig := make(map[string]interface{})
+		
+		// Always include advanced_machine_features with default values
+		nodeConfig["advanced_machine_features"] = flattenAdvancedMachineFeatures(nil)
+		
+		// Always include empty resource_manager_tags
+		nodeConfig["resource_manager_tags"] = make(map[string]string)
+		
+		return []interface{}{nodeConfig}
 	}
+	
 	nodeConfig := make(map[string]interface{})
 	hasNonDefaultConfig := false // Track if any non-default value is set
 
@@ -704,6 +748,10 @@ func flattenNodeConfig(config *container.NodeConfig) []interface{} {
 		nodeConfig["gvnic"] = flattened
 		hasNonDefaultConfig = true
 	}
+
+	// Always include advanced_machine_features with default values
+	nodeConfig["advanced_machine_features"] = flattenAdvancedMachineFeatures(config.AdvancedMachineFeatures)
+	hasNonDefaultConfig = true
 	// Add other nested blocks (EphemeralStorage, Nvme, SecondaryDisks, Gcfs, Windows, SoleTenant, HostMaintenance, FastSocket etc.)
 	// Example:
 	// if flattened := flattenEphemeralStorage(config.EphemeralStorageLocalSsdConfig); flattened != nil {
@@ -723,11 +771,13 @@ func flattenNodeConfig(config *container.NodeConfig) []interface{} {
 		hasNonDefaultConfig = true
 	}
 
-	// resource_manager_tags: Omit if empty map
+	// resource_manager_tags: Always include empty map as default
 	if config.ResourceManagerTags != nil && len(config.ResourceManagerTags.Tags) > 0 {
 		nodeConfig["resource_manager_tags"] = config.ResourceManagerTags.Tags // Assign the actual map
-		hasNonDefaultConfig = true
+	} else {
+		nodeConfig["resource_manager_tags"] = make(map[string]string) // Empty map as default
 	}
+	hasNonDefaultConfig = true
 	// enable_confidential_storage: Omit if false (default)
 	if config.EnableConfidentialStorage { // Assuming field name and bool type
 		nodeConfig["enable_confidential_storage"] = true
@@ -1174,23 +1224,26 @@ func flattenAddonsConfig(config *container.AddonsConfig) []interface{} {
 
 // flattenNetworkPolicy: Omit if nil or disabled (default). Check provider default.
 func flattenNetworkPolicy(policy *container.NetworkPolicy) []interface{} {
-    // Default enabled: false
-    if policy == nil || !policy.Enabled {
-        return nil // Omit block if not enabled
-    }
+    // Create data map for network policy
     data := make(map[string]interface{})
-    // REMOVE: hasNonDefaultConfig := false // Unused
-
-    data["enabled"] = true // Must be true if block is present
-    // REMOVE: hasNonDefaultConfig = true // Unused
-
-    // Provider: Omit if default (PROVIDER_UNSPECIFIED). Check provider behavior for CALICO default.
-    if policy.Provider != "" && policy.Provider != "PROVIDER_UNSPECIFIED" {
-        data["provider"] = policy.Provider
-        // REMOVE: hasNonDefaultConfig = true // Unused
+    
+    // If policy is nil or not enabled, return default values
+    if policy == nil || !policy.Enabled {
+        data["enabled"] = false
+        data["provider"] = "PROVIDER_UNSPECIFIED"
+        return []interface{}{data}
     }
-
-    // Block is returned because policy.Enabled is true.
+    
+    // Policy is enabled
+    data["enabled"] = true
+    
+    // Set provider, default to PROVIDER_UNSPECIFIED if not set
+    if policy.Provider != "" {
+        data["provider"] = policy.Provider
+    } else {
+        data["provider"] = "PROVIDER_UNSPECIFIED"
+    }
+    
     return []interface{}{data}
 }
 
@@ -1544,12 +1597,13 @@ func flattenPrivateClusterConfigAdapted(config *container.PrivateClusterConfig, 
 }
 
 
-// flattenReleaseChannel: Omit if default (UNSPECIFIED).
+// flattenReleaseChannel: Always include with default UNSPECIFIED if not specified
 func flattenReleaseChannel(rc *container.ReleaseChannel) []interface{} {
+	// If rc is nil or channel is default/empty, return default value
 	if rc == nil || rc.Channel == "" || rc.Channel == defaultReleaseChannel {
-		return nil // Omit if channel is default/unspecified
+		return []interface{}{map[string]interface{}{"channel": "UNSPECIFIED"}}
 	}
-	// Return block only if a specific, non-default channel is set
+	// Return block with specified channel
 	return []interface{}{map[string]interface{}{"channel": rc.Channel}}
 }
 
@@ -1759,24 +1813,56 @@ func flattenAutoprovisioningNodePoolDefaults(defaults *container.Autoprovisionin
 	return []interface{}{data}
 }
 
-// flattenDatabaseEncryption: Omit if state is default (DECRYPTED or unspecified).
+// flattenDatabaseEncryption: Always include database_encryption block
 func flattenDatabaseEncryption(config *container.DatabaseEncryption) []interface{} {
-	// Default state is DECRYPTED. Omit if nil, unspecified, or decrypted.
-	if config == nil || config.State == "" || config.State == "DECRYPTION_STATE_UNSPECIFIED" || config.State == "DECRYPTED" {
-		return nil
-	}
+    // If config is nil, return a default config with state "DECRYPTED"
+    if config == nil {
+        de := make(map[string]interface{})
+        de["state"] = "DECRYPTED"
+        return []interface{}{de}
+    }
 
-	de := make(map[string]interface{})
-	de["state"] = config.State // Must be ENCRYPTED if we are here
+    de := make(map[string]interface{})
+    
+    // Always set the state, default to "DECRYPTED" if empty or unspecified
+    if config.State == "" || config.State == "DECRYPTION_STATE_UNSPECIFIED" {
+        de["state"] = "DECRYPTED"
+    } else {
+        de["state"] = config.State
+    }
 
-	// KeyName is required by TF if state is ENCRYPTED
-	if config.KeyName != "" {
-		de["key_name"] = config.KeyName
-	} else {
-		fmt.Println("Warning: DatabaseEncryption state is ENCRYPTED but key_name is missing. Omitting block.")
-		return nil // Invalid state
-	}
-	return []interface{}{de}
+    // Only include key_name if state is ENCRYPTED and key_name is provided
+    if config.State == "ENCRYPTED" {
+        if config.KeyName != "" {
+            de["key_name"] = config.KeyName
+        } else {
+            fmt.Println("Warning: DatabaseEncryption state is ENCRYPTED but key_name is missing. Setting state to DECRYPTED.")
+            de["state"] = "DECRYPTED"
+        }
+    }
+    
+    return []interface{}{de}
+}
+
+// flattenEnterpriseConfig: Always include enterprise_config block with desired_tier
+func flattenEnterpriseConfig(config *container.EnterpriseConfig) []interface{} {
+    // If config is nil, return a default config with desired_tier = "STANDARD"
+    if config == nil {
+        ec := make(map[string]interface{})
+        ec["desired_tier"] = "STANDARD"
+        return []interface{}{ec}
+    }
+
+    ec := make(map[string]interface{})
+    
+    // Always set the desired_tier, default to "STANDARD" if empty or unspecified
+    if config.DesiredTier == "" || config.DesiredTier == "CLUSTER_TIER_UNSPECIFIED" {
+        ec["desired_tier"] = "STANDARD"
+    } else {
+        ec["desired_tier"] = config.DesiredTier
+    }
+    
+    return []interface{}{ec}
 }
 
 // flattenVerticalPodAutoscaling: Omit if default (enabled: false).

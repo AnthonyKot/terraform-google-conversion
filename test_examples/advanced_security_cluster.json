@@ -1,0 +1,140 @@
+[{
+  "name": "//container.googleapis.com/projects/test-project-123/zones/us-central1-a/clusters/secure-cluster",
+  "asset_type": "container.googleapis.com/Cluster",
+  "resource": {
+    "version": "v1",
+    "discovery_document_uri": "https://container.googleapis.com/$discovery/rest",
+    "discovery_name": "Cluster",
+    "parent": "//cloudresourcemanager.googleapis.com/projects/test-project-123",
+    "data": {
+      "name": "secure-cluster",
+      "location": "us-central1-a",
+      "zone": "us-central1-a",
+      "locations": ["us-central1-a"],
+      "addonsConfig": {
+        "networkPolicyConfig": {"disabled": false},
+        "httpLoadBalancing": {},
+        "horizontalPodAutoscaling": {},
+        "kubernetesDashboard": {"disabled": true},
+        "dnsCacheConfig": {"enabled": true},
+        "gcePersistentDiskCsiDriverConfig": {"enabled": true}
+      },
+      "binaryAuthorization": {
+        "evaluationMode": "PROJECT_SINGLETON_POLICY_ENFORCE" 
+      },
+      "network": "secure-network",
+      "subnetwork": "secure-subnet",
+      "networkConfig": {
+        "network": "projects/test-project-123/global/networks/secure-network",
+        "subnetwork": "projects/test-project-123/regions/us-central1/subnetworks/secure-subnet",
+        "datapathProvider": "ADVANCED_DATAPATH",
+        "enableIntraNodeVisibility": true
+      },
+      "databaseEncryption": {
+        "state": "ENCRYPTED",
+        "keyName": "projects/test-project-123/locations/us-central1/keyRings/gke-keyring/cryptoKeys/gke-key"
+      },
+      "currentMasterVersion": "1.31.5-gke.1233001",
+      "currentNodeVersion": "1.31.5-gke.1233001",
+      "defaultMaxPodsConstraint": {"maxPodsPerNode": "110"},
+      "loggingConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "WORKLOADS", "APISERVER", "CONTROLLER_MANAGER", "SCHEDULER"]
+        }
+      },
+      "monitoringConfig": {
+        "componentConfig": {
+          "enableComponents": ["SYSTEM_COMPONENTS", "KUBELET", "WORKLOADS"]
+        },
+        "managedPrometheusConfig": {"enabled": true}
+      },
+      "ipAllocationPolicy": {
+        "clusterIpv4CidrBlock": "10.20.0.0/14",
+        "servicesIpv4CidrBlock": "10.25.0.0/20",
+        "stackType": "IPV4",
+        "useIpAliases": true
+      },
+      "nodeConfig": {
+        "machineType": "n2-standard-4",
+        "diskSizeGb": 100,
+        "diskType": "pd-ssd",
+        "oauthScopes": [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ],
+        "metadata": {"disable-legacy-endpoints": "true"},
+        "imageType": "COS_CONTAINERD",
+        "serviceAccount": "secure-sa@test-project-123.iam.gserviceaccount.com",
+        "shieldedInstanceConfig": {
+          "enableSecureBoot": true,
+          "enableIntegrityMonitoring": true
+        },
+        "sandboxConfig": {
+          "type": "GVISOR"
+        }
+      },
+      "nodePools": [{
+        "name": "secure-pool",
+        "config": {
+          "machineType": "n2-standard-4",
+          "diskSizeGb": 100,
+          "diskType": "pd-ssd",
+          "oauthScopes": [
+            "https://www.googleapis.com/auth/cloud-platform"
+          ],
+          "metadata": {"disable-legacy-endpoints": "true"},
+          "imageType": "COS_CONTAINERD",
+          "serviceAccount": "secure-sa@test-project-123.iam.gserviceaccount.com",
+          "shieldedInstanceConfig": {
+            "enableSecureBoot": true,
+            "enableIntegrityMonitoring": true
+          },
+          "sandboxConfig": {
+            "type": "GVISOR"
+          }
+        },
+        "initialNodeCount": 1,
+        "locations": ["us-central1-a"],
+        "management": {"autoRepair": true, "autoUpgrade": true},
+        "maxPodsConstraint": {"maxPodsPerNode": "110"},
+        "version": "1.31.5-gke.1233001",
+        "kubeletConfig": {
+          "cpuManagerPolicy": "static",
+          "cpuCfsQuota": true,
+          "cpuCfsQuotaPeriod": "100ms",
+          "insecureKubeletReadonlyPortEnabled": false
+        }
+      }],
+      "networkPolicy": {
+        "provider": "CALICO",
+        "enabled": true
+      },
+      "securityPostureConfig": {
+        "mode": "SECURITY_POSTURE_MODE_ENTERPRISE",
+        "vulnerabilityMode": "VULNERABILITY_ENTERPRISE"
+      },
+      "shieldedNodes": {
+        "enabled": true
+      },
+      "workloadIdentityConfig": {
+        "workloadPool": "test-project-123.svc.id.goog"
+      },
+      "secretManagerConfig": {
+        "enabled": true
+      },
+      "meshCertificates": {
+        "enableCertificates": true
+      },
+      "identityServiceConfig": {
+        "enabled": true
+      },
+      "status": "RUNNING"
+    },
+    "location": "us-central1-a"
+  },
+  "ancestors": [
+    "projects/test-project-123",
+    "folders/123456789012",
+    "organizations/987654321098"
+  ],
+  "update_time": "2025-04-18T10:00:00.000000Z"
+}]
