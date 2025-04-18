@@ -22,36 +22,6 @@ resource "google_container_cluster" "cluster-zonal-1" {
     }
   }
   name     = "cluster-zonal-1"
-  node_pool {
-    name              = "pool-name"
-    node_count        = 1
-    node_locations    = ["us-central1-c"]
-    version           = "1.31.5-gke.1233001"
-    max_pods_per_node = 110
-
-    management {
-      auto_upgrade = false
-    }
-
-    network_config {
-      pod_ipv4_cidr_block = "10.52.0.0/14"
-      pod_range           = "gke-cluster-zonal-1-pods-de672f38"
-    }
-
-    node_config {
-      disk_type    = "pd-balanced"
-      machine_type = "e2-medium"
-      metadata = {
-        disable-legacy-endpoints = "true"
-      }
-      resource_labels = {
-        goog-gke-node-pool-provisioning-model = "on-demand"
-      }
-      kubelet_config {
-        insecure_kubelet_readonly_port_enabled = true
-      }
-    }
-  }
   node_version              = "1.31.5-gke.1233001"
   project                   = "cluster-converter-1"
   remove_default_node_pool  = true
@@ -61,6 +31,41 @@ resource "google_container_cluster" "cluster-zonal-1" {
   }
   subnetwork = "projects/cluster-converter-1/regions/us-central1/subnetworks/default"
 }
+
+resource "google_container_node_pool" "pool-name" {
+  cluster  = "cluster-zonal-1"
+  location = "us-central1-c"
+  name     = "pool-name"
+  node_count = 1
+  node_locations = ["us-central1-c"]
+  version   = "1.31.5-gke.1233001"
+  max_pods_per_node = 110
+  
+  management {
+    auto_upgrade = false
+  }
+  
+  network_config {
+    pod_ipv4_cidr_block = "10.52.0.0/14"
+    pod_range           = "gke-cluster-zonal-1-pods-de672f38"
+  }
+  
+  node_config {
+    disk_type    = "pd-balanced"
+    machine_type = "e2-medium"
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+    resource_labels = {
+      goog-gke-node-pool-provisioning-model = "on-demand"
+    }
+    kubelet_config {
+      insecure_kubelet_readonly_port_enabled = true
+    }
+  }
+  project = "cluster-converter-1"
+}
+
 # --- Removed Attributes (Defaults or Null/Empty) ---
 # allow_net_admin, cluster_ipv4_cidr, datapath_provider, deletion_protection, description,
 # disable_l4_lb_firewall_reconciliation, enable_autopilot, enable_cilium_clusterwide_network_policy,

@@ -5,42 +5,50 @@ resource "google_container_cluster" "cluster-zonal-1" {
 
   default_max_pods_per_node = 110
 
-  fleet {
-    project = "cluster-converter-1"
-  }
-
   ip_allocation_policy {
     cluster_ipv4_cidr_block      = "10.52.0.0/14"
     cluster_secondary_range_name = "gke-cluster-zonal-1-pods-de672f38"
     services_ipv4_cidr_block     = "34.118.224.0/20"
   }
 
-  logging_config {}
+  location = "us-central1-c"
 
-  master_version = "1.31.5-gke.1233001"
+  logging_config {
+    enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
+  }
 
   monitoring_config {
+    enable_components = ["SYSTEM_COMPONENTS", "STORAGE", "POD", "DEPLOYMENT", "STATEFULSET", "DAEMONSET", "HPA", "CADVISOR", "KUBELET"]
+
     managed_prometheus {
       enabled = true
     }
   }
 
   name                     = "cluster-zonal-1"
-  networking_mode          = "VPC_NATIVE"
   node_locations           = ["us-central1-c"]
+  node_version             = "1.31.5-gke.1233001"
   project                  = "cluster-converter-1"
   remove_default_node_pool = true
-  subnetwork               = "default"
+
+  security_posture_config {
+    mode               = "BASIC"
+    vulnerability_mode = "VULNERABILITY_DISABLED"
+  }
+
+  subnetwork = "projects/cluster-converter-1/regions/us-central1/subnetworks/default"
 }
 
 resource "google_container_node_pool" "pool-name" {
-  cluster = "cluster-zonal-1"
+  cluster  = "cluster-zonal-1"
+  location = "us-central1-c"
 
   management {
     auto_upgrade = false
   }
 
-  name = "pool-name"
+  max_pods_per_node = 110
+  name              = "pool-name"
 
   network_config {
     pod_ipv4_cidr_block = "10.52.0.0/14"
@@ -48,7 +56,12 @@ resource "google_container_node_pool" "pool-name" {
   }
 
   node_config {
-    disk_type    = "pd-balanced"
+    disk_type = "pd-balanced"
+
+    kubelet_config {
+      insecure_kubelet_readonly_port_enabled = "true"
+    }
+
     machine_type = "e2-medium"
 
     metadata = {
