@@ -326,7 +326,7 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 	// Always include network_policy, will default to disabled with PROVIDER_UNSPECIFIED if not specified
 	hclData["network_policy"] = flattenNetworkPolicy(cluster.NetworkPolicy)
 
-	// Logging / Monitoring: Omit service if default AND config block is nil/default
+	// Logging / Monitoring: Always include monitoring_config, omit logging/service if default
 	loggingConfigBlock := flattenLoggingConfig(cluster.LoggingConfig)
 	monitoringConfigBlock := flattenMonitoringConfig(cluster.MonitoringConfig)
 
@@ -336,11 +336,13 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 		hclData["logging_service"] = cluster.LoggingService
 	} // Else: omit both if config is default AND service is default
 
-	if monitoringConfigBlock != nil {
-		hclData["monitoring_config"] = monitoringConfigBlock
-	} else if cluster.MonitoringService != "" && cluster.MonitoringService != defaultMonitoringService {
+	// Always include monitoring_config
+	hclData["monitoring_config"] = monitoringConfigBlock
+	
+	// Include monitoring_service only if non-default and should be explicitly set
+	if cluster.MonitoringService != "" && cluster.MonitoringService != defaultMonitoringService {
 		hclData["monitoring_service"] = cluster.MonitoringService
-	} // Else: omit both if config is default AND service is default
+	}
 
 	// Addons Config: omit if nil or only contains defaults
 	if flattened := flattenAddonsConfig(cluster.AddonsConfig); flattened != nil {
@@ -392,10 +394,12 @@ func (c *ContainerClusterConverter) convertClusterData(cluster *container.Cluste
 	//  hclData["deletion_protection"] = false
 	// }
 
-	// --- Cluster Blocks --- Omit if flatten returns nil (meaning nil API object or only defaults)
-	if flattened := flattenMasterAuth(cluster.MasterAuth); flattened != nil {
-		hclData["master_auth"] = flattened
-	}
+	// --- Cluster Blocks --- Always include master_auth and control_plane_endpoints_config with default values
+	// Always include master_auth block with client_certificate_config.issue_client_certificate = false
+	hclData["master_auth"] = flattenMasterAuth(cluster.MasterAuth)
+	
+	// Always include control_plane_endpoints_config with defaults
+	hclData["control_plane_endpoints_config"] = flattenControlPlaneEndpointsConfig(cluster.ControlPlaneEndpointsConfig)
 	if flattened := flattenPrivateClusterConfigAdapted(cluster.PrivateClusterConfig, cluster.NetworkConfig); flattened != nil {
 		hclData["private_cluster_config"] = flattened
 	}
@@ -1507,16 +1511,26 @@ func flattenPlacementPolicy(policy *container.PlacementPolicy) []interface{} {
 	return []interface{}{data}
 }
 
-// flattenMasterAuth: Only include if client cert issuing is explicitly enabled.
+// flattenMasterAuth: Always include client_certificate_config with default issue_client_certificate = false
 func flattenMasterAuth(auth *container.MasterAuth) []interface{} {
-	// Default: issue_client_certificate is false. Omit block if false or nil.
-	if auth == nil || auth.ClientCertificateConfig == nil || !auth.ClientCertificateConfig.IssueClientCertificate {
-		return nil
+	// Create default master_auth block
+	ma := make(map[string]interface{})
+	
+	// Create client_certificate_config block
+	ccc := make(map[string]interface{})
+	
+	// Default to issue_client_certificate = false
+	ccc["issue_client_certificate"] = false
+	
+	// Override if explicitly set to true
+	if auth != nil && auth.ClientCertificateConfig != nil && auth.ClientCertificateConfig.IssueClientCertificate {
+		ccc["issue_client_certificate"] = true
 	}
-	// Only include the config block because issue_client_certificate=true is non-default.
-	// Computed fields (certs/key) are not included in HCL.
-	ccc := map[string]interface{}{"issue_client_certificate": true}
-	ma := map[string]interface{}{"client_certificate_config": []interface{}{ccc}}
+	
+	// Add client_certificate_config to master_auth
+	ma["client_certificate_config"] = []interface{}{ccc}
+	
+	// Return master_auth block
 	return []interface{}{ma}
 }
 
@@ -1619,38 +1633,57 @@ func flattenLoggingConfig(config *container.LoggingConfig) []interface{} {
 	}}
 }
 
-// flattenMonitoringConfig: Omit if nil or empty/default components. Check nested defaults.
+// flattenMonitoringConfig: Always include default values
 func flattenMonitoringConfig(config *container.MonitoringConfig) []interface{} {
-	if config == nil { 
-		return []interface{}{map[string]interface{}{}} // Return empty block instead of nil 
+	mc := make(map[string]interface{})
+	
+	// Default components to include if not specified
+	defaultComponents := []string{
+		"SYSTEM_COMPONENTS", 
+		"STORAGE", 
+		"POD", 
+		"DEPLOYMENT", 
+		"STATEFULSET", 
+		"DAEMONSET", 
+		"HPA", 
+		"CADVISOR", 
+		"KUBELET",
 	}
 
-	mc := make(map[string]interface{})
-
-	// Always include enable_components if present
-	if config.ComponentConfig != nil && len(config.ComponentConfig.EnableComponents) > 0 {
+	// Set components - either from config or defaults
+	if config != nil && config.ComponentConfig != nil && len(config.ComponentConfig.EnableComponents) > 0 {
 		mc["enable_components"] = config.ComponentConfig.EnableComponents
+	} else {
+		mc["enable_components"] = defaultComponents
 	}
 	
-	// Managed Prometheus: Include if enabled
-	if config.ManagedPrometheusConfig != nil && config.ManagedPrometheusConfig.Enabled {
-		mpc := make(map[string]interface{})
-		mpc["enabled"] = true
-		
-		// --- Start Modification ---
-		// Auto Monitoring Config: Field 'AutoMonitoringConfig' does not exist in v1.ManagedPrometheusConfig struct.
-		// This configuration might only be available in beta APIs or newer client library versions.
-		// Commenting out this section for v1 compatibility.
-		/*
-		if config.ManagedPrometheusConfig.AutoMonitoringConfig != nil && config.ManagedPrometheusConfig.AutoMonitoringConfig.Scope != "" {
-			amc := map[string]interface{}{"scope": config.ManagedPrometheusConfig.AutoMonitoringConfig.Scope}
-			mpc["auto_monitoring_config"] = []interface{}{amc}
-		}
-		*/
-		// --- End Modification ---
-		
-		mc["managed_prometheus"] = []interface{}{mpc}
+	// Managed Prometheus: Always include with default enabled=true
+	mpc := make(map[string]interface{})
+	
+	// Default to enabled=true
+	mpc["enabled"] = true
+	
+	// Override if explicitly set to false
+	if config != nil && config.ManagedPrometheusConfig != nil && !config.ManagedPrometheusConfig.Enabled {
+		mpc["enabled"] = false
 	}
+
+	// Always include auto_monitoring_config with default scope=NONE
+	amc := map[string]interface{}{"scope": "NONE"}
+	
+	// AutoMonitoringConfig is not available in the v1 API - the commented code would work with v1beta1
+	// Instead, just use the default scope value
+	// if config != nil && config.ManagedPrometheusConfig != nil && 
+	//    config.ManagedPrometheusConfig.AutoMonitoringConfig != nil && 
+	//    config.ManagedPrometheusConfig.AutoMonitoringConfig.Scope != "" {
+	//	amc["scope"] = config.ManagedPrometheusConfig.AutoMonitoringConfig.Scope
+	// }
+	
+	// Add auto_monitoring_config to managed_prometheus
+	mpc["auto_monitoring_config"] = []interface{}{amc}
+	
+	// Add managed_prometheus to monitoring_config
+	mc["managed_prometheus"] = []interface{}{mpc}
 
 	// Advanced Datapath Observability: Include if present
 	if config.AdvancedDatapathObservabilityConfig != nil {
@@ -2107,4 +2140,62 @@ func flattenNodeConfigDefaults(ncd *container.NodeConfigDefaults) []interface{} 
 
 	if !hasNonDefaultConfig { return nil } // Nothing non-default found in node_config_defaults
 	return []interface{}{ncdData}
+}
+
+// flattenControlPlaneEndpointsConfig: Always include with default values
+func flattenControlPlaneEndpointsConfig(config *container.ControlPlaneEndpointsConfig) []interface{} {
+	result := make(map[string]interface{})
+	
+	// DNS Endpoint Config - default to allow_external_traffic = false
+	dnsConfig := make(map[string]interface{})
+	dnsConfig["allow_external_traffic"] = false
+	
+	// Override if explicitly set to true
+	if config != nil && config.DnsEndpointConfig != nil && config.DnsEndpointConfig.AllowExternalTraffic {
+		dnsConfig["allow_external_traffic"] = true
+	}
+	
+	// Add endpoint if present
+	if config != nil && config.DnsEndpointConfig != nil && config.DnsEndpointConfig.Endpoint != "" {
+		dnsConfig["endpoint"] = config.DnsEndpointConfig.Endpoint
+	}
+	
+	result["dns_endpoint_config"] = []interface{}{dnsConfig}
+	
+	// IP Endpoints Config - default to enabled = true
+	ipConfig := make(map[string]interface{})
+	ipConfig["enabled"] = true
+	
+	// Override if explicitly set to false
+	if config != nil && config.IpEndpointsConfig != nil && !config.IpEndpointsConfig.Enabled {
+		ipConfig["enabled"] = false
+	}
+	
+	// Add other fields if present
+	if config != nil && config.IpEndpointsConfig != nil {
+		if config.IpEndpointsConfig.EnablePublicEndpoint {
+			ipConfig["enable_public_endpoint"] = true
+		}
+		
+		if config.IpEndpointsConfig.PublicEndpoint != "" {
+			ipConfig["public_endpoint"] = config.IpEndpointsConfig.PublicEndpoint
+		}
+		
+		if config.IpEndpointsConfig.PrivateEndpoint != "" {
+			ipConfig["private_endpoint"] = config.IpEndpointsConfig.PrivateEndpoint
+		}
+		
+		// Add authorized_networks_config if present
+		if config.IpEndpointsConfig.AuthorizedNetworksConfig != nil {
+			if config.IpEndpointsConfig.AuthorizedNetworksConfig.GcpPublicCidrsAccessEnabled {
+				authConfig := make(map[string]interface{})
+				authConfig["gcp_public_cidrs_access_enabled"] = true
+				ipConfig["authorized_networks_config"] = []interface{}{authConfig}
+			}
+		}
+	}
+	
+	result["ip_endpoints_config"] = []interface{}{ipConfig}
+	
+	return []interface{}{result}
 }
